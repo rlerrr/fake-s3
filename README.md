@@ -1,50 +1,40 @@
 # fake-s3
 
-<!--
-    [![build status][build-png]][build]
-    [![Coverage Status][cover-png]][cover]
-    [![Davis Dependency status][dep-png]][dep]
--->
+A fake s3 server for testing purposes.
 
-<!-- [![NPM][npm-png]][npm] -->
-
-a fake s3 server for testing purposes.
-
-This is a zero dependency implementation that stores all objects
-in memory
+This is a zero dependency implementation that stores all objects on the filesystem
 
 ## Example
 
 ```js
-const FakeS3 = require('fake-s3');
-const AWS = require('aws-sdk')
+import FakeS3 from 'fake-s3';
+import * as S3 from "@aws-sdk/client-s3";
 
 const server = new FakeS3({
-  buckets: ['my-bucket'],
-  prefix: 'files-i-care-about/'
+  port: 8080,
+  users: [{
+    accessKeyId: 'testKey',
+    secretAccessKey: 'superSecret',
+    buckets: [{
+      name: 'my-bucket',
+      path: '/path/to/bucket/files'
+    }]
+  }]
 })
 
-// starts the server on specified port
-await server.bootstrap()
-
-// this field now exists and contains the actual hostPort
-server.hostPort
+// Start the server on specified port
+await server.bootstrap();
 
 // Create an S3 client connected to it
-const s3 = new AWS.S3({
+const s3 = new S3.S3Client({
   endpoint: `http://${server.hostPort}`
   sslEnabled: false,
-  accessKeyId: '123',
-  secretAccessKey: 'abc',
-  s3ForcePathStyle: true
-})
-
-// can wait for files
-const files = await server.waitForFiles('my-bucket', 2)
-// will yield you back when two files have been uploaded
-
-// shutdown server
-await server.close()
+  s3ForcePathStyle: true,
+  credentials: {    
+    accessKeyId: 'testKey',
+    secretAccessKey: 'superSecret'
+  }
+});
 ```
 
 ## Support
@@ -53,34 +43,23 @@ The following `aws-sdk` methods are supported
 
  - `s3.listBuckets()`
  - `s3.listObjectsV2()`
+ - `s3.getObject()`
  - `s3.upload()`
+ - `s3-request-presigner -> getSignedUrl()`
 
 ## Features
 
-Currently the `fake-s3` module supports two different ways
-of getting data in & out of it.
+Get/List/Put objects to/from the filesystem
 
-One where you just set up the `fake-s3` server and use the `s3`
-api to upload and list files.
+Signature verification on regular calls and presigned URLs
 
-The second is to use the `populateFromCache()` method to
-load a bunch of fixtures of disk into memory.
-
-## Recommended local approach
-
-I recommend copying the `script/cache-from-prod.js` script into
-your application and using it to download production data onto
-your laptop so that it can be used for offline development.
+Optional crude form of "versioning" to avoid accidental file destruction
 
 ## Docs
 
-### `var server = new FakeS3(options)`
-
- - `options.prefix` : prefix for `getFiles()` and `waitForFiles()` ;
-      necessary to support multi part uploads, otherwise
-      `waitForFiles()` will return too early when N parts have
-      been uploaded.
- - `options.buckets` : an array of buckets to create.
+### `new FakeS3(options)`
+ - `options.port` : the port to bind to.  Will default to a random port if unspecified.
+ - `options.users` : an array of users which may access the server, and their associated buckets.
 
 ### `server.hostPort`
 
@@ -91,48 +70,9 @@ will be non-null after `bootstrap()` finishes.
 
 starts the server
 
-### `await getFiles(bucket)`
-
-gets all files in a bucket
-
-### `await waitForFiles(bucket, count)`
-
-this will wait for file uploads to finish and calls `getFiles()`
-and returns them once it's finished.
-
-This is useful if your application does background uploads and you
-want to be notified when they are finished.
-
 ### `await server.close()`
 
 closes the HTTP server.
-
-### `await server.populateFromCache(cacheDir)`
-
-This will have the server fetch buckets & objects from a cache on
-disk. This can be useful for writing tests with fixtures or starting
-a local server with fixtures.
-
-It's recommended you use `cacheBucketsToDisk()` and
-`cacheObjectsToDisk()` to create the fixtures directory.
-
-### `await server.cacheBucketsToDisk(cacheDir, accessKeyId, data)`
-
-Calling this will write buckets to the disk cache. The `data`
-parameter is the response of `s3.listBuckets()`.
-
-The accessKeyId is the name of the AWS account you are writing to.
-If you only use one account you can just specify 'default' otherwise
-you can get it from the S3 client instance.
-
-### `await server.cacheObjectsToDisk(cacheDir, accessKeyId, bucketName, data)`
-
-Calling this will write objects to the disk cache. The `data`
-parameter is the response of `s3.listObjectsV2()`
-
-The accessKeyId is the name of the AWS account you are writing to.
-If you only use one account you can just specify 'default' otherwise
-you can get it from the S3 client instance.
 
 ## Installation
 
@@ -147,12 +87,3 @@ you can get it from the S3 client instance.
  - Raynos
 
 ## MIT Licensed
-
-  [build-png]: https://secure.travis-ci.org/Raynos/fake-s3.png
-  [build]: https://travis-ci.org/Raynos/fake-s3
-  [cover-png]: https://coveralls.io/repos/Raynos/fake-s3/badge.png
-  [cover]: https://coveralls.io/r/Raynos/fake-s3
-  [dep-png]: https://david-dm.org/Raynos/fake-s3.png
-  [dep]: https://david-dm.org/Raynos/fake-s3
-  [npm-png]: https://nodei.co/npm/fake-s3.png?stars&downloads
-  [npm]: https://nodei.co/npm/fake-s3
